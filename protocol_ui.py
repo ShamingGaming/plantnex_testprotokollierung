@@ -1,11 +1,10 @@
 import streamlit as st
-import pandas as pd
+from supabase import create_client, Client
 from datetime import datetime
-import os
 import time
 
 # ---------------------------------------------------------
-# 1. KONFIGURATION & STYLING (KIOSK MODE)
+# 1. KONFIGURATION & SETUP
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="PLANTNEX LAB",
@@ -14,246 +13,291 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS: Dark Mode + Streamlit UI Elemente verstecken
+# Verbindung zu Supabase herstellen
+# (Liest automatisch aus .streamlit/secrets.toml)
+@st.cache_resource
+def init_connection():
+    try:
+        url = st.secrets["supabase"]["url"]
+        key = st.secrets["supabase"]["key"]
+        return create_client(url, key)
+    except:
+        st.error("Fehler: Secrets nicht gefunden. Bitte Supabase URL/Key in secrets.toml eintragen.")
+        return None
+
+supabase = init_connection()
+
+# CSS (Industrial Theme + UI Hiding + Styling für Anleitung)
 st.markdown("""
     <style>
-    /* 1. Alles verstecken, was nach Streamlit aussieht */
+    /* UI Elemente verstecken */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
     .stDeployButton {display:none;}
     
-    /* 2. Farben & Look (Industrial Dark) */
-    .stApp {
-        background-color: #0E1117; /* Sehr dunkles Grau */
-        color: #E0E0E0;
-    }
+    /* Dark Industrial Theme */
+    .stApp { background-color: #0E1117; color: #E0E0E0; }
+    h1, h2, h3, h4 { color: #FFFFFF !important; text-transform: uppercase; letter-spacing: 1px; }
     
-    /* Überschriften */
-    h1, h2, h3 {
-        color: #FFFFFF !important;
-        font-family: 'Arial', sans-serif;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-    
-    /* Grüne Akzente (PLANTNEX Vibe) */
-    .stSlider [data-baseweb="slider"] div[role="slider"] {
-        background-color: #00FF41 !important; /* Matrix Green */
-    }
-    .stProgress > div > div > div > div {
-        background-color: #00FF41;
-    }
-    
-    /* 3. Breite Buttons für Touch-Bedienung */
+    /* Neon Green Accents */
+    .stSlider [data-baseweb="slider"] div[role="slider"] { background-color: #00FF41 !important; }
     div.stButton > button {
-        background-color: #1F2937;
-        color: #00FF41;
-        border: 1px solid #00FF41;
-        font-weight: bold;
-        padding: 15px 0px;
-        width: 100%;
-        border-radius: 4px;
-        transition: all 0.2s;
+        background-color: #1F2937; color: #00FF41; border: 1px solid #00FF41;
+        width: 100%; padding: 15px 0px; font-weight: bold; transition: all 0.2s;
     }
-    div.stButton > button:hover {
-        background-color: #00FF41;
-        color: #000000;
-        border: 1px solid #FFFFFF;
-    }
+    div.stButton > button:hover { background-color: #00FF41; color: #000000; }
     
-    /* Warnboxen Styling */
-    div[data-baseweb="notification"] {
-        border-left: 5px solid #00FF41;
-        background-color: #1F2937;
+    /* Anleitung Box Styling */
+    .instruction-box {
+        border: 1px solid #444;
+        background-color: #161b22;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 25px;
+        font-family: 'Arial', sans-serif;
+        line-height: 1.6;
     }
+    .instruction-box h3 { border-bottom: 1px solid #00FF41; padding-bottom: 10px; margin-bottom: 15px; }
+    .instruction-box h4 { color: #00FF41 !important; margin-top: 20px; margin-bottom: 5px; }
+    .instruction-box ul { padding-left: 20px; margin-bottom: 15px; }
+    .instruction-box li { margin-bottom: 5px; }
+    .warning-text { color: #FFD700; font-weight: bold; } /* Goldgelb für Warnungen */
     </style>
     """, unsafe_allow_html=True)
 
-# Dateiname für CSV
-DATA_FILE = "plantnex_feedback.csv"
+# ---------------------------------------------------------
+# 2. LOGIK: DATEN LADEN & SPEICHERN
+# ---------------------------------------------------------
+
+def load_existing_data(batch_id, tester_name):
+    """Prüft, ob Eintrag existiert und lädt Daten in Session State"""
+    if not supabase: return None
+    try:
+        response = supabase.table("plantnex_tests").select("*")\
+            .eq("batch_id", batch_id)\
+            .eq("tester_name", tester_name)\
+            .execute()
+        
+        if response.data and len(response.data) > 0:
+            data = response.data[0]
+            st.toast("♻️ DATEN GEFUNDEN & GELADEN!", icon="💾")
+            return data
+        else:
+            return None
+    except Exception as e:
+        st.error(f"Verbindungsfehler: {e}")
+        return None
+
+def save_to_supabase(data_dict):
+    """Speichert oder updated den Datensatz (Upsert)"""
+    if not supabase: return False
+    try:
+        # Upsert funktioniert nur, wenn wir batch_id + tester_name als Unique Key in SQL definiert haben
+        response = supabase.table("plantnex_tests").upsert(data_dict).execute()
+        return True
+    except Exception as e:
+        st.error(f"Speicherfehler: {e}")
+        return False
 
 # ---------------------------------------------------------
-# 2. HILFSFUNKTIONEN
+# 3. ANLEITUNGS-TEXT (NEU & GESTYLT)
 # ---------------------------------------------------------
-def save_feedback(data_dict):
-    """Speichert Daten in CSV"""
-    df_new = pd.DataFrame([data_dict])
-    if not os.path.isfile(DATA_FILE):
-        df_new.to_csv(DATA_FILE, index=False)
-    else:
-        df_new.to_csv(DATA_FILE, mode='a', header=False, index=False)
+def show_instructions():
+    st.markdown("""
+    <div class="instruction-box">
+        <h3>🧪 PLANTNEX BETA-TEST: KURZANLEITUNG</h3>
+        <p>Danke, dass du Teil der Test-Crew bist! Du hältst einen Prototypen ("Batch") unseres Bio-Superabsorbers in den Händen. Da es noch keine Verpackung gibt, befolge bitte genau diese Schritte:</p>
+        
+        <p class="warning-text">⚠️ WARNUNG VORAB:</p>
+        <p>Das Granulat enthält echte <u>Pflanzenkohle</u>. Es kann stauben und färbt bei Nässe tiefschwarz.</p>
+        <ul>
+            <li>Bitte nicht über dem weißen Teppich öffnen.</li>
+            <li>Wir empfehlen Handschuhe oder vorsichtiges Arbeiten (lässt sich aber mit Seife abwaschen).</li>
+        </ul>
+
+        <h4>SCHRITT 1: DER GLAS-TEST (Pflicht für das Feedback!)</h4>
+        <p>Bevor du es der Pflanze gibst, müssen wir wissen, wie dieser spezielle Batch reagiert.</p>
+        <ul>
+            <li><strong>Nimm 1 gehäuften Teelöffel</strong> (ca. 5g) Granulat.</li>
+            <li>Gib es in ein durchsichtiges Glas (ca. 200ml).</li>
+            <li>Kippe das Glas voll mit Wasser.</li>
+            <li><strong>Wartezeit:</strong> Schau nach 30 Minuten und nach 2 Stunden nach.</li>
+            <li><strong>Beobachte:</strong> Wie viel ist es geworden? Wie fühlt es sich an (fest/weich)?</li>
+        </ul>
+        <p><em>(Diese Daten trägst du gleich unten in das Formular ein.)</em></p>
+
+        <h4>SCHRITT 2: AB IN DIE ERDE (Die Kür)</h4>
+        <p>Nach dem Messen kannst du das Produkt verwenden:</p>
+        
+        <p><strong>🌱 Der "Profi-Weg" (Empfohlen):</strong><br>
+        Nimm den nassen "Gelee-Klumpen" aus deinem Test-Glas und mische ihn direkt unter die Erde im Wurzelbereich deiner Pflanze. Das ist der sofortige Wasserspeicher.</p>
+        
+        <p><strong>⏱️ Der "Schnelle Weg":</strong><br>
+        Mische 1 Teelöffel trockenes Granulat unter die Erde und gieße sofort kräftig an, damit es aktiviert wird.</p>
+        
+        <p><strong>Dosierung:</strong> 1 Teelöffel reicht für einen Standard-Topf (ca. 1 Liter Erde). Übertreibe es nicht – das Zeug hat Kraft!</p>
+        
+        <hr style="border-color: #333; margin-top: 20px;">
+        <p style="text-align: center; color: #00FF41; font-weight: bold; font-size: 1.1em;">Bereit? Dann starte jetzt deinen Timer und das Formular! 🚀</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 3. APP UI
+# 4. HAUPTANWENDUNG
 # ---------------------------------------------------------
 def main():
-    # URL Parameter lesen (?id=Max -> id="Max")
-    query_params = st.query_params
-    default_user = query_params.get("id", "")
-    
-    # --- HEADER ---
-    st.markdown("## PLANTNEX // LAB PROTOKOLL")
-    st.caption("Qualitätskontrolle & Beta-Test")
-    st.divider()
+    # --- ANLEITUNG OBEN ---
+    show_instructions()
 
-    # --- ABSCHNITT 0: WER UND WAS ---
+    # --- SESSION STATE INITIALISIERUNG ---
+    default_keys = {
+        "swelling_vol": 0, "swelling_time": 0, "rest_water": "Alles weg (Trocken)",
+        "consistency": 3, "stickiness": "Angenehm feucht", "structure": "Körnig / Stückig (Gut)",
+        "app_method": "Trocken einmischen", "dirty_hands": False, "elevator_effect": False,
+        "comment": "", "logged_in": False
+    }
+    
+    for key, val in default_keys.items():
+        if key not in st.session_state:
+            st.session_state[key] = val
+
+    # --- LOGIN BEREICH (Name & Charge) ---
+    st.markdown("### 🔐 START / LOGIN")
     col1, col2 = st.columns(2)
     with col1:
-        tester_name = st.text_input("NAME DES PRÜFERS", value=default_user, placeholder="Dein Vorname")
+        tester_name_input = st.text_input("OPERATOR NAME", placeholder="Kürzel / Vorname")
     with col2:
-        batch_id = st.text_input("CHARGEN-NR.", placeholder="z.B. B004-Mais", help="Steht auf dem Testbeutel")
+        batch_id_input = st.text_input("CHARGEN-NUMMER", placeholder="z.B. B005-X")
 
-    if not batch_id:
-        st.warning("⚠️ Bitte gib zuerst die Chargen-Nr. ein.")
-        st.stop() # App stoppt hier, bis ID da ist
+    # Button zum Laden/Starten
+    if st.button("PROTOKOLL STARTEN / FORTSETZEN ➡️"):
+        if not tester_name_input or not batch_id_input:
+            st.error("❌ Bitte Name und Chargen-Nummer eingeben!")
+        else:
+            existing = load_existing_data(batch_id_input, tester_name_input)
+            
+            if existing:
+                # Session State mit DB-Daten überschreiben
+                st.session_state.swelling_vol = existing.get('swelling_vol', 0)
+                st.session_state.swelling_time = existing.get('swelling_time', 0)
+                st.session_state.rest_water = existing.get('rest_water', "Alles weg (Trocken)")
+                st.session_state.consistency = existing.get('consistency', 3)
+                st.session_state.stickiness = existing.get('stickiness', "Angenehm feucht")
+                st.session_state.structure = existing.get('structure', "Körnig / Stückig (Gut)")
+                st.session_state.app_method = existing.get('app_method', "Trocken einmischen")
+                st.session_state.dirty_hands = existing.get('dirty_hands', False)
+                st.session_state.elevator_effect = existing.get('elevator_effect', False)
+                st.session_state.comment = existing.get('comment', "")
+            
+            st.session_state.logged_in = True
+            st.rerun()
+
+    # Stop, wenn nicht eingeloggt
+    if not st.session_state.logged_in:
+        st.stop()
 
     # -----------------------------------------------------
-    # SZENARIO A: GLAS TEST
+    # START FORMULAR
     # -----------------------------------------------------
+    st.divider()
+    st.markdown(f"**AKTIVE SITZUNG:** {tester_name_input} | Batch: {batch_id_input}")
+
+    # --- A: GLAS TEST ---
     st.markdown("### A // GLAS TEST")
-    st.info("ℹ️ Mischung: 1 Teelöffel (5g) + 200ml Wasser.")
-
-    # Timer Buttons
-    st.caption("Stoppuhr starten:")
-    t_col1, t_col2 = st.columns(2)
-    if t_col1.button("15 MINUTEN"):
-        st.toast("Timer läuft: 15 Min (Simuliert)", icon="⏱️")
-    if t_col2.button("30 MINUTEN"):
-        st.toast("Timer läuft: 30 Min (Simuliert)", icon="⏱️")
     
-    # Eingaben
+    # Timer Buttons (lokal)
+    t1, t2 = st.columns(2)
+    if t1.button("⏱️ 30 MINUTEN"): st.toast("Timer: 30 Min gestartet", icon="⏳")
+    if t2.button("⏱️ 2 STUNDEN"): st.toast("Timer: 2 Std gestartet", icon="⏳")
+    
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # Schieberegler für Volumen
-    st.markdown("**1. Wie viel Masse ist entstanden? (in ml)**")
-    swelling_vol = st.slider("", 0, 300, 0, step=10, key="vol_slider")
-    st.write(f"Eingabe: **{swelling_vol} ml**")
-    
-    # LOGIK: Warnung
-    if 0 < swelling_vol < 30:
-        st.error("⚠️ ACHTUNG: Sehr wenig Volumen!")
-        st.markdown("*Das Material wirkt inaktiv. Bitte noch 30-60 min warten.*")
+    # WICHTIG: Alle Widgets nutzen value=st.session_state.key
+    vol = st.slider("Volumen im Glas (ml)", 0, 300, value=st.session_state.swelling_vol, key="input_vol")
+    if 0 < vol < 30: st.error("⚠️ Zu wenig Volumen (Inaktiv)")
 
-    st.markdown("**2. Wie lange hat es gedauert? (Minuten)**")
-    swelling_time = st.number_input("", min_value=0, step=1, label_visibility="collapsed")
+    dur = st.number_input("Dauer bis voll (Minuten)", min_value=0, value=st.session_state.swelling_time, key="input_dur")
     
-    st.markdown("**3. Restwasser im Glas?**")
-    rest_water = st.radio("Restwasser Status", 
-                          ["Alles weg (Trocken)", "Leichter Film", "Pfütze", "Suppe (Schwimmt)"],
-                          index=0, label_visibility="collapsed")
+    water_opts = ["Alles weg (Trocken)", "Leichter Film", "Pfütze", "Suppe (Schwimmt)"]
+    idx_water = water_opts.index(st.session_state.rest_water) if st.session_state.rest_water in water_opts else 0
+    rest = st.radio("Restwasser Status", water_opts, index=idx_water, horizontal=True, key="input_rest")
 
     st.divider()
 
-    # -----------------------------------------------------
-    # SZENARIO B: HAPTIK CHECK
-    # -----------------------------------------------------
-    st.markdown("### B // HAPTIK & GEFÜHL")
-    st.markdown("*Fasse in das aufgequollene Granulat.*")
-
-    st.markdown("**1. Konsistenz (Gefühl)**")
-    # Custom Labels unter dem Slider simulieren wir durch Text
-    consistency = st.slider("Slider Konsistenz", 1, 5, 3, label_visibility="collapsed")
+    # --- B: HAPTIK ---
+    st.markdown("### B // HAPTIK")
     
-    # Visuelles Feedback zum Slider-Wert
-    if consistency == 1:
-        st.error("URTEIL: SCHLEIM (FLÜSSIG)")
-        st.markdown("🚨 **KRITISCHER FEHLER!** Das ist zu weich.")
-    elif consistency == 2:
-        st.warning("URTEIL: ZU WEICH")
-    elif consistency == 3:
-        st.success("URTEIL: PERFEKT (WACKELPUDDING)")
-    elif consistency == 4:
-        st.info("URTEIL: FEST")
-    else:
-        st.info("URTEIL: HARTGUMMI (ZU FEST)")
-
-    col_h1, col_h2 = st.columns(2)
-    with col_h1:
-        st.markdown("**2. Klebrigkeit**")
-        stickiness = st.selectbox("", ["Trocken / Krümelig", "Angenehm feucht", "Klebt leicht", "Klebt wie Honig"], label_visibility="collapsed")
-    with col_h2:
-        st.markdown("**3. Struktur**")
-        structure = st.selectbox("", ["Körnig / Stückig (Gut)", "Zerfällt sofort", "Matschig / Brei"], label_visibility="collapsed")
+    cons = st.slider("Konsistenz (1=Schleim, 5=Hartgummi)", 1, 5, value=st.session_state.consistency, key="input_cons")
+    if cons == 1: st.error("KRITISCHER FEHLER: SCHLEIM")
+    
+    c1, c2 = st.columns(2)
+    stick_opts = ["Trocken / Krümelig", "Angenehm feucht", "Klebt leicht", "Klebt wie Honig"]
+    idx_stick = stick_opts.index(st.session_state.stickiness) if st.session_state.stickiness in stick_opts else 1
+    stick = c1.selectbox("Klebrigkeit", stick_opts, index=idx_stick, key="input_stick")
+    
+    struct_opts = ["Körnig / Stückig (Gut)", "Zerfällt sofort", "Matschig / Brei"]
+    idx_struct = struct_opts.index(st.session_state.structure) if st.session_state.structure in struct_opts else 0
+    struct = c2.selectbox("Struktur", struct_opts, index=idx_struct, key="input_struct")
 
     st.divider()
 
-    # -----------------------------------------------------
-    # SZENARIO C: ANWENDUNG
-    # -----------------------------------------------------
+    # --- C: ANWENDUNG ---
     st.markdown("### C // ANWENDUNG")
     
-    app_method = st.radio("Wie wendest du es an?", ["Trocken einmischen", "Vorgequollen (Nass)"], horizontal=True)
+    method_opts = ["Trocken einmischen", "Vorgequollen (Nass)"]
+    idx_method = method_opts.index(st.session_state.app_method) if st.session_state.app_method in method_opts else 0
+    meth = st.radio("Angewandte Methode", method_opts, index=idx_method, horizontal=True, key="input_meth")
+    
+    if meth == "Vorgequollen (Nass)":
+        st.warning("⚠️ HANDSCHUHE TRAGEN!")
 
-    if app_method == "Vorgequollen (Nass)":
-        st.warning("⚠️ VORSICHT: FÄRBT SCHWARZ! Handschuhe anziehen.")
-
-    c1, c2 = st.columns(2)
-    dirty_hands = c1.checkbox("Schwarze Hände?")
-    elevator_effect = c2.checkbox("Pflanze hochgedrückt?")
+    cc1, cc2 = st.columns(2)
+    dirty = cc1.checkbox("Schwarze Hände?", value=st.session_state.dirty_hands, key="input_dirty")
+    elevator = cc2.checkbox("Fahrstuhl-Effekt?", value=st.session_state.elevator_effect, key="input_elev")
 
     st.divider()
     
-    # -----------------------------------------------------
-    # ABSCHLUSS
-    # -----------------------------------------------------
-    st.markdown("**Freitext / Anmerkungen:**")
-    free_text = st.text_area("", placeholder="Ist dir sonst noch etwas aufgefallen?", label_visibility="collapsed")
+    # --- ABSCHLUSS ---
+    comm = st.text_area("Kommentar / Freitext", value=st.session_state.comment, placeholder="Deine Beobachtungen...", key="input_comm")
     
-    st.markdown("**Foto vom Ergebnis (Optional):**")
-    uploaded_file = st.file_uploader("", type=['jpg', 'png', 'jpeg'], label_visibility="collapsed")
-    
+    st.caption("Neues Foto hochladen (Optional):")
+    uploaded_file = st.file_uploader("", type=['jpg', 'png'], label_visibility="collapsed")
+
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # Der große Absende-Button
-    submit_btn = st.button("BERICHT ABSENDEN 🚀")
+    # SPEICHER BUTTON
+    if st.button("💾 BERICHT ABSENDEN / AKTUALISIEREN"):
+        # Daten sammeln
+        img_str = "kein_bild"
+        if uploaded_file:
+            img_str = f"IMG_{batch_id_input}_{tester_name_input}"
 
-    if submit_btn:
-        if not tester_name:
-            st.error("❌ Bitte gib oben deinen Namen ein!")
-        else:
-            # Daten speichern
-            image_name = "kein_bild"
-            if uploaded_file:
-                image_name = f"{batch_id}_{tester_name}_{uploaded_file.name}"
-                # Hier würde man das Bild speichern code einfügen
-            
-            feedback_data = {
-                "zeitstempel": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "charge": batch_id,
-                "pruefer": tester_name,
-                "volumen_ml": swelling_vol,
-                "dauer_min": swelling_time,
-                "restwasser": rest_water,
-                "konsistenz_wert": consistency,
-                "klebrigkeit": stickiness,
-                "struktur": structure,
-                "methode": app_method,
-                "schmutzige_haende": dirty_hands,
-                "fahrstuhl_effekt": elevator_effect,
-                "kommentar": free_text,
-                "bild": image_name
-            }
-            
-            save_feedback(feedback_data)
-            
+        payload = {
+            "batch_id": batch_id_input,
+            "tester_name": tester_name_input,
+            "swelling_vol": vol,
+            "swelling_time": dur,
+            "rest_water": rest,
+            "consistency": cons,
+            "stickiness": stick,
+            "structure": struct,
+            "app_method": meth,
+            "dirty_hands": dirty,
+            "elevator_effect": elevator,
+            "comment": comm,
+            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # Bild URL Logik hier vereinfacht
+        }
+        
+        success = save_to_supabase(payload)
+        
+        if success:
             st.balloons()
-            st.success("✅ DATEN ÜBERMITTELT! Danke für den Test.")
-            st.markdown(f"Eintrag für Charge **{batch_id}** wurde gespeichert.")
-
-    # -----------------------------------------------------
-    # ADMIN LINK (Versteckt)
-    # -----------------------------------------------------
-    # Nur sichtbar wenn ?admin=true in URL
-    if query_params.get("admin") == "true":
-        st.divider()
-        st.error("🔒 ADMIN BEREICH")
-        if os.path.exists(DATA_FILE):
-            df = pd.read_csv(DATA_FILE)
-            st.dataframe(df)
-            
-            with open(DATA_FILE, "rb") as f:
-                st.download_button("CSV HERUNTERLADEN", f, file_name="plantnex_daten.csv")
+            st.success("✅ DATEN GESPEICHERT! Du kannst die Seite schließen oder später weitermachen.")
+            time.sleep(2)
+            # Seite neu laden, um sicherzugehen, dass alles synchron ist
+            st.rerun()
 
 if __name__ == "__main__":
     main()
