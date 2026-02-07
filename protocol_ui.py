@@ -5,245 +5,255 @@ import os
 import time
 
 # ---------------------------------------------------------
-# 1. KONFIGURATION & STYLING (THE VIBE)
+# 1. KONFIGURATION & STYLING (KIOSK MODE)
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="PLANTNEX | LAB",
-    page_icon="🧪",
+    page_title="PLANTNEX LAB",
+    page_icon="🌿",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS für den "Dark Industrial / Cyberpunk" Look
+# Custom CSS: Dark Mode + Streamlit UI Elemente verstecken
 st.markdown("""
     <style>
-    /* Main Background & Text */
+    /* 1. Alles verstecken, was nach Streamlit aussieht */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stDeployButton {display:none;}
+    
+    /* 2. Farben & Look (Industrial Dark) */
     .stApp {
-        background-color: #121212;
+        background-color: #0E1117; /* Sehr dunkles Grau */
         color: #E0E0E0;
     }
     
-    /* Headers - Industrial Font Style */
+    /* Überschriften */
     h1, h2, h3 {
-        color: #ffffff !important;
-        font-family: 'Courier New', Courier, monospace;
+        color: #FFFFFF !important;
+        font-family: 'Arial', sans-serif;
         text-transform: uppercase;
-        letter-spacing: 2px;
-    }
-
-    /* Primary Highlights (Neon Green) */
-    .stSlider [data-baseweb="slider"] div[role="slider"] {
-        background-color: #39FF14 !important;
-    }
-    .stSlider div[data-testid="stMarkdownContainer"] p {
-        color: #39FF14; 
-        font-weight: bold;
+        letter-spacing: 1px;
     }
     
-    /* Buttons (Big & Bold) */
+    /* Grüne Akzente (PLANTNEX Vibe) */
+    .stSlider [data-baseweb="slider"] div[role="slider"] {
+        background-color: #00FF41 !important; /* Matrix Green */
+    }
+    .stProgress > div > div > div > div {
+        background-color: #00FF41;
+    }
+    
+    /* 3. Breite Buttons für Touch-Bedienung */
     div.stButton > button {
-        background-color: #1E1E1E;
-        color: #39FF14;
-        border: 1px solid #39FF14;
-        border-radius: 0px; /* Industrial corners */
-        padding: 15px 20px;
-        font-size: 18px;
+        background-color: #1F2937;
+        color: #00FF41;
+        border: 1px solid #00FF41;
+        font-weight: bold;
+        padding: 15px 0px;
         width: 100%;
-        transition: all 0.3s ease;
+        border-radius: 4px;
+        transition: all 0.2s;
     }
     div.stButton > button:hover {
-        background-color: #39FF14;
+        background-color: #00FF41;
         color: #000000;
-        box-shadow: 0 0 15px #39FF14;
+        border: 1px solid #FFFFFF;
     }
-
-    /* Alert Boxes */
+    
+    /* Warnboxen Styling */
     div[data-baseweb="notification"] {
-        border-left: 5px solid #39FF14;
-        background-color: #1E1E1E;
+        border-left: 5px solid #00FF41;
+        background-color: #1F2937;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# Dateiname
+# Dateiname für CSV
 DATA_FILE = "plantnex_feedback.csv"
 
 # ---------------------------------------------------------
 # 2. HILFSFUNKTIONEN
 # ---------------------------------------------------------
 def save_feedback(data_dict):
-    """Speichert Daten + Metadaten in CSV"""
+    """Speichert Daten in CSV"""
     df_new = pd.DataFrame([data_dict])
-    
     if not os.path.isfile(DATA_FILE):
         df_new.to_csv(DATA_FILE, index=False)
     else:
         df_new.to_csv(DATA_FILE, mode='a', header=False, index=False)
 
-def check_password():
-    """Simulierter Login für Tester (Optional)"""
-    # Hier vereinfacht: Wir nehmen die ID aus der URL oder Input
-    return True
-
 # ---------------------------------------------------------
-# 3. UI KOMPONENTEN
+# 3. APP UI
 # ---------------------------------------------------------
 def main():
-    # --- HEADER ---
-    st.title("PLANTNEX // BETA LAB")
-    st.markdown("### SYSTEM STATUS: ONLINE 🟢")
-    st.divider()
-
-    # --- SETUP ---
-    # URL Parameter lesen (?id=Max -> id="Max") oder Fallback
+    # URL Parameter lesen (?id=Max -> id="Max")
     query_params = st.query_params
     default_user = query_params.get("id", "")
     
+    # --- HEADER ---
+    st.markdown("## PLANTNEX // LAB PROTOKOLL")
+    st.caption("Qualitätskontrolle & Beta-Test")
+    st.divider()
+
+    # --- ABSCHNITT 0: WER UND WAS ---
     col1, col2 = st.columns(2)
     with col1:
-        tester_name = st.text_input("OPERATOR NAME", value=default_user, placeholder="Dein Name")
+        tester_name = st.text_input("NAME DES PRÜFERS", value=default_user, placeholder="Dein Vorname")
     with col2:
-        # Wichtig: Dropdown oder Text für Batch ID
-        batch_id = st.text_input("BATCH ID", placeholder="z.B. B001-HD", help="Steht auf dem Beutel")
+        batch_id = st.text_input("CHARGEN-NR.", placeholder="z.B. B004-Mais", help="Steht auf dem Testbeutel")
 
     if not batch_id:
-        st.warning("⚠️ BATCH ID EINGEBEN UM ZU STARTEN")
-        st.stop() # Stoppt hier, bis Batch ID da ist
+        st.warning("⚠️ Bitte gib zuerst die Chargen-Nr. ein.")
+        st.stop() # App stoppt hier, bis ID da ist
 
     # -----------------------------------------------------
     # SZENARIO A: GLAS TEST
     # -----------------------------------------------------
-    st.markdown("## A // GLAS TEST (QUANTITATIV)")
-    st.info("ℹ️ 1 TL (5g) Granulat + 200ml Wasser mischen.")
+    st.markdown("### A // GLAS TEST")
+    st.info("ℹ️ Mischung: 1 Teelöffel (5g) + 200ml Wasser.")
 
-    # --- Tool: Timer ---
-    with st.expander("⏱️ LABOR TIMER ÖFFNEN", expanded=False):
-        t_col1, t_col2, t_col3 = st.columns(3)
-        if t_col1.button("15 MIN"):
-            with st.spinner("Timer läuft: 15 min..."):
-                time.sleep(1) # Nur Demo, echter Sleep blockiert UI zu sehr
-                st.toast("Timer gestartet (Demo)", icon="⏱️")
-        if t_col2.button("30 MIN"):
-             st.toast("30 Min Timer aktiv", icon="⏱️")
+    # Timer Buttons
+    st.caption("Stoppuhr starten:")
+    t_col1, t_col2 = st.columns(2)
+    if t_col1.button("15 MINUTEN"):
+        st.toast("Timer läuft: 15 Min (Simuliert)", icon="⏱️")
+    if t_col2.button("30 MINUTEN"):
+        st.toast("Timer läuft: 30 Min (Simuliert)", icon="⏱️")
     
-    # --- Inputs Glas Test ---
-    st.markdown("#### MESSWERTE")
+    # Eingaben
+    st.markdown("<br>", unsafe_allow_html=True)
     
-    # Schieberegler sind mobil oft besser als Tippen
-    swelling_vol = st.number_input("QUELLVOLUMEN (in ml)", min_value=0, max_value=500, step=5, help="Abgelesen am Messbecher")
+    # Schieberegler für Volumen
+    st.markdown("**1. Wie viel Masse ist entstanden? (in ml)**")
+    swelling_vol = st.slider("", 0, 300, 0, step=10, key="vol_slider")
+    st.write(f"Eingabe: **{swelling_vol} ml**")
     
-    # LOGIK: Warnung bei wenig Volumen
+    # LOGIK: Warnung
     if 0 < swelling_vol < 30:
-        st.error("⚠️ NIEDRIGES VOLUMEN DETEKTIERT!")
-        st.markdown("> **System Message:** Scheint ein 'Hardcore-Batch' (Heavy Duty) zu sein. Bitte noch 1h warten und erneut messen.")
+        st.error("⚠️ ACHTUNG: Sehr wenig Volumen!")
+        st.markdown("*Das Material wirkt inaktiv. Bitte noch 30-60 min warten.*")
 
-    swelling_time = st.number_input("ZEIT BIS SÄTTIGUNG (in min)", min_value=0, step=1)
+    st.markdown("**2. Wie lange hat es gedauert? (Minuten)**")
+    swelling_time = st.number_input("", min_value=0, step=1, label_visibility="collapsed")
     
-    rest_water = st.radio("RESTWASSER STATUS", 
-                          ["Alles aufgesaugt (Trocken)", "Leichter Film", "Pfütze vorhanden", "Suppe"],
-                          index=0)
+    st.markdown("**3. Restwasser im Glas?**")
+    rest_water = st.radio("Restwasser Status", 
+                          ["Alles weg (Trocken)", "Leichter Film", "Pfütze", "Suppe (Schwimmt)"],
+                          index=0, label_visibility="collapsed")
 
     st.divider()
 
     # -----------------------------------------------------
     # SZENARIO B: HAPTIK CHECK
     # -----------------------------------------------------
-    st.markdown("## B // HAPTIK CHECK (QUALITÄT)")
+    st.markdown("### B // HAPTIK & GEFÜHL")
     st.markdown("*Fasse in das aufgequollene Granulat.*")
 
-    # Slider für Konsistenz
-    consistency = st.slider("KONSISTENZ (1=Schleim, 5=Hartgummi)", 1, 5, 3)
+    st.markdown("**1. Konsistenz (Gefühl)**")
+    # Custom Labels unter dem Slider simulieren wir durch Text
+    consistency = st.slider("Slider Konsistenz", 1, 5, 3, label_visibility="collapsed")
     
-    # LOGIK: Critical Fail
+    # Visuelles Feedback zum Slider-Wert
     if consistency == 1:
-        st.error("🚨 CRITICAL FAIL: SLIME DETECTED")
-        st.markdown("Das ist Konkurrenz-Niveau. Batch markieren!")
+        st.error("URTEIL: SCHLEIM (FLÜSSIG)")
+        st.markdown("🚨 **KRITISCHER FEHLER!** Das ist zu weich.")
+    elif consistency == 2:
+        st.warning("URTEIL: ZU WEICH")
     elif consistency == 3:
-        st.success("✅ TARGET: FESTER PUDDING")
+        st.success("URTEIL: PERFEKT (WACKELPUDDING)")
+    elif consistency == 4:
+        st.info("URTEIL: FEST")
+    else:
+        st.info("URTEIL: HARTGUMMI (ZU FEST)")
 
-    haptik_cols = st.columns(2)
-    with haptik_cols[0]:
-        stickiness = st.selectbox("KLEBRIGKEIT", ["Trocken", "Angenehm feucht", "Klebt leicht", "Klebt wie Honig"])
-    with haptik_cols[1]:
-        structure = st.selectbox("STRUKTUR", ["Bleibt körnig (Ziel)", "Zerfällt leicht", "Matsch"])
+    col_h1, col_h2 = st.columns(2)
+    with col_h1:
+        st.markdown("**2. Klebrigkeit**")
+        stickiness = st.selectbox("", ["Trocken / Krümelig", "Angenehm feucht", "Klebt leicht", "Klebt wie Honig"], label_visibility="collapsed")
+    with col_h2:
+        st.markdown("**3. Struktur**")
+        structure = st.selectbox("", ["Körnig / Stückig (Gut)", "Zerfällt sofort", "Matschig / Brei"], label_visibility="collapsed")
 
     st.divider()
 
     # -----------------------------------------------------
-    # SZENARIO C: TOPF TEST (ANWENDUNG)
+    # SZENARIO C: ANWENDUNG
     # -----------------------------------------------------
-    st.markdown("## C // TOPF TEST")
+    st.markdown("### C // ANWENDUNG")
     
-    app_method = st.radio("METHODE", ["Trockentermischung", "Pre-Soak (Vorgequollen)"], horizontal=True)
+    app_method = st.radio("Wie wendest du es an?", ["Trocken einmischen", "Vorgequollen (Nass)"], horizontal=True)
 
-    # LOGIK: Pre-Soak Warnung
-    if app_method == "Pre-Soak (Vorgequollen)":
-        st.warning("⚠️ ACHTUNG: PFLANZENKOHLE FÄRBT! HANDSCHUHE TRAGEN.")
+    if app_method == "Vorgequollen (Nass)":
+        st.warning("⚠️ VORSICHT: FÄRBT SCHWARZ! Handschuhe anziehen.")
 
-    c_col1, c_col2 = st.columns(2)
-    dirty_hands = c_col1.checkbox("Schwarze Schlamm-Hände?")
-    elevator_effect = c_col2.checkbox("Fahrstuhl-Effekt (Pflanze hochgedrückt)?")
+    c1, c2 = st.columns(2)
+    dirty_hands = c1.checkbox("Schwarze Hände?")
+    elevator_effect = c2.checkbox("Pflanze hochgedrückt?")
 
-    # -----------------------------------------------------
-    # ABSCHLUSS & UPLOAD
-    # -----------------------------------------------------
     st.divider()
-    st.markdown("### D // DOKUMENTATION")
     
-    free_text = st.text_area("FREITEXT / BEOBACHTUNGEN", placeholder="Glibber oder Gold?")
+    # -----------------------------------------------------
+    # ABSCHLUSS
+    # -----------------------------------------------------
+    st.markdown("**Freitext / Anmerkungen:**")
+    free_text = st.text_area("", placeholder="Ist dir sonst noch etwas aufgefallen?", label_visibility="collapsed")
     
-    uploaded_file = st.file_uploader("FOTO BEWEIS (Optional)", type=['png', 'jpg', 'jpeg'])
+    st.markdown("**Foto vom Ergebnis (Optional):**")
+    uploaded_file = st.file_uploader("", type=['jpg', 'png', 'jpeg'], label_visibility="collapsed")
     
-    # Submit Button Logic
     st.markdown("<br>", unsafe_allow_html=True)
-    submit_btn = st.button("DATEN ÜBERTRAGEN [SEND]")
+    
+    # Der große Absende-Button
+    submit_btn = st.button("BERICHT ABSENDEN 🚀")
 
     if submit_btn:
         if not tester_name:
-            st.error("❌ FEHLER: Name fehlt.")
+            st.error("❌ Bitte gib oben deinen Namen ein!")
         else:
-            # Datensatz erstellen
-            file_name_saved = "kein_bild"
-            if uploaded_file is not None:
-                file_name_saved = f"{batch_id}_{tester_name}_{uploaded_file.name}"
-                # Hinweis: Hier würde man das Bild normalerweise speichern
+            # Daten speichern
+            image_name = "kein_bild"
+            if uploaded_file:
+                image_name = f"{batch_id}_{tester_name}_{uploaded_file.name}"
+                # Hier würde man das Bild speichern code einfügen
             
             feedback_data = {
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "batch_id": batch_id,
-                "tester": tester_name,
-                "vol_ml": swelling_vol,
-                "time_min": swelling_time,
-                "rest_water": rest_water,
-                "consistency": consistency,
-                "stickiness": stickiness,
-                "structure": structure,
-                "method": app_method,
-                "dirty_hands": dirty_hands,
-                "elevator_effect": elevator_effect,
-                "comment": free_text,
-                "image": file_name_saved
+                "zeitstempel": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "charge": batch_id,
+                "pruefer": tester_name,
+                "volumen_ml": swelling_vol,
+                "dauer_min": swelling_time,
+                "restwasser": rest_water,
+                "konsistenz_wert": consistency,
+                "klebrigkeit": stickiness,
+                "struktur": structure,
+                "methode": app_method,
+                "schmutzige_haende": dirty_hands,
+                "fahrstuhl_effekt": elevator_effect,
+                "kommentar": free_text,
+                "bild": image_name
             }
             
             save_feedback(feedback_data)
             
             st.balloons()
-            st.success("✅ DATEN ERFOLGREICH IN DIE MATRIX ÜBERTRAGEN.")
-            st.markdown(f"**Log:** Eintrag für Batch `{batch_id}` gespeichert.")
+            st.success("✅ DATEN ÜBERMITTELT! Danke für den Test.")
+            st.markdown(f"Eintrag für Charge **{batch_id}** wurde gespeichert.")
 
     # -----------------------------------------------------
-    # ADMIN VIEW (Nur wenn ?admin=true)
+    # ADMIN LINK (Versteckt)
     # -----------------------------------------------------
+    # Nur sichtbar wenn ?admin=true in URL
     if query_params.get("admin") == "true":
         st.divider()
-        st.warning("🔒 ADMIN AREA")
+        st.error("🔒 ADMIN BEREICH")
         if os.path.exists(DATA_FILE):
             df = pd.read_csv(DATA_FILE)
             st.dataframe(df)
             
-            # Download Button für CSV
             with open(DATA_FILE, "rb") as f:
-                st.download_button("DOWNLOAD CSV", f, file_name="plantnex_full_data.csv")
+                st.download_button("CSV HERUNTERLADEN", f, file_name="plantnex_daten.csv")
 
 if __name__ == "__main__":
     main()
