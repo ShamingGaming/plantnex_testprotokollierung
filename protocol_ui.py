@@ -21,7 +21,7 @@ def init_connection():
         url = st.secrets["supabase"]["url"]
         key = st.secrets["supabase"]["key"]
         return create_client(url, key)
-    except:
+    except Exception:
         st.error("Fehler: Secrets nicht gefunden. Bitte Supabase URL/Key in secrets.toml eintragen.")
         return None
 
@@ -101,47 +101,42 @@ def save_to_supabase(data_dict):
         return False
 
 # ---------------------------------------------------------
-# 3. ANLEITUNGS-TEXT (NEU & GESTYLT)
+# 3. ANLEITUNGS-TEXT (KORRIGIERT)
 # ---------------------------------------------------------
 def show_instructions():
+    # ACHTUNG: Der folgende Text ist absichtlich ganz links am Rand,
+    # damit die Formatierung im Browser korrekt angezeigt wird.
     st.markdown("""
-    <div class="instruction-box">
-        <h3>🧪 PLANTNEX BETA-TEST: KURZANLEITUNG</h3>
-        <p>Danke, dass du Teil der Test-Crew bist! Du hältst einen Prototypen ("Batch") unseres Bio-Superabsorbers in den Händen. Da es noch keine Verpackung gibt, befolge bitte genau diese Schritte:</p>
-        
-        <p class="warning-text">⚠️ WARNUNG VORAB:</p>
-        <p>Das Granulat enthält echte <u>Pflanzenkohle</u>. Es kann stauben und färbt bei Nässe tiefschwarz.</p>
-        <ul>
-            <li>Bitte nicht über dem weißen Teppich öffnen.</li>
-            <li>Wir empfehlen Handschuhe oder vorsichtiges Arbeiten (lässt sich aber mit Seife abwaschen).</li>
-        </ul>
-
-        <h4>SCHRITT 1: DER GLAS-TEST (Pflicht für das Feedback!)</h4>
-        <p>Bevor du es der Pflanze gibst, müssen wir wissen, wie dieser spezielle Batch reagiert.</p>
-        <ul>
-            <li><strong>Nimm 1 gehäuften Teelöffel</strong> (ca. 5g) Granulat.</li>
-            <li>Gib es in ein durchsichtiges Glas (ca. 200ml).</li>
-            <li>Kippe das Glas voll mit Wasser.</li>
-            <li><strong>Wartezeit:</strong> Schau nach 30 Minuten und nach 2 Stunden nach.</li>
-            <li><strong>Beobachte:</strong> Wie viel ist es geworden? Wie fühlt es sich an (fest/weich)?</li>
-        </ul>
-        <p><em>(Diese Daten trägst du gleich unten in das Formular ein.)</em></p>
-
-        <h4>SCHRITT 2: AB IN DIE ERDE (Die Kür)</h4>
-        <p>Nach dem Messen kannst du das Produkt verwenden:</p>
-        
-        <p><strong>🌱 Der "Profi-Weg" (Empfohlen):</strong><br>
-        Nimm den nassen "Gelee-Klumpen" aus deinem Test-Glas und mische ihn direkt unter die Erde im Wurzelbereich deiner Pflanze. Das ist der sofortige Wasserspeicher.</p>
-        
-        <p><strong>⏱️ Der "Schnelle Weg":</strong><br>
-        Mische 1 Teelöffel trockenes Granulat unter die Erde und gieße sofort kräftig an, damit es aktiviert wird.</p>
-        
-        <p><strong>Dosierung:</strong> 1 Teelöffel reicht für einen Standard-Topf (ca. 1 Liter Erde). Übertreibe es nicht – das Zeug hat Kraft!</p>
-        
-        <hr style="border-color: #333; margin-top: 20px;">
-        <p style="text-align: center; color: #00FF41; font-weight: bold; font-size: 1.1em;">Bereit? Dann starte jetzt deinen Timer und das Formular! 🚀</p>
-    </div>
-    """, unsafe_allow_html=True)
+<div class="instruction-box">
+<h3>🧪 PLANTNEX BETA-TEST: KURZANLEITUNG</h3>
+<p>Danke, dass du Teil der Test-Crew bist! Du hältst einen Prototypen ("Batch") unseres Bio-Superabsorbers in den Händen. Da es noch keine Verpackung gibt, befolge bitte genau diese Schritte:</p>
+<p class="warning-text">⚠️ WARNUNG VORAB:</p>
+<p>Das Granulat enthält echte <u>Pflanzenkohle</u>. Es kann stauben und färbt bei Nässe tiefschwarz.</p>
+<ul>
+<li>Bitte nicht über dem weißen Teppich öffnen.</li>
+<li>Wir empfehlen Handschuhe oder vorsichtiges Arbeiten (lässt sich aber mit Seife abwaschen).</li>
+</ul>
+<h4>SCHRITT 1: DER GLAS-TEST (Pflicht für das Feedback!)</h4>
+<p>Bevor du es der Pflanze gibst, müssen wir wissen, wie dieser spezielle Batch reagiert.</p>
+<ul>
+<li><strong>Nimm 1 gehäuften Teelöffel</strong> (ca. 5g) Granulat.</li>
+<li>Gib es in ein durchsichtiges Glas (ca. 200ml).</li>
+<li>Kippe das Glas voll mit Wasser.</li>
+<li><strong>Wartezeit:</strong> Schau nach 30 Minuten und nach 2 Stunden nach.</li>
+<li><strong>Beobachte:</strong> Wie viel ist es geworden? Wie fühlt es sich an (fest/weich)?</li>
+</ul>
+<p><em>(Diese Daten trägst du gleich unten in das Formular ein.)</em></p>
+<h4>SCHRITT 2: AB IN DIE ERDE (Die Kür)</h4>
+<p>Nach dem Messen kannst du das Produkt verwenden:</p>
+<p><strong>🌱 Der "Profi-Weg" (Empfohlen):</strong><br>
+Nimm den nassen "Gelee-Klumpen" aus deinem Test-Glas und mische ihn direkt unter die Erde im Wurzelbereich deiner Pflanze. Das ist der sofortige Wasserspeicher.</p>
+<p><strong>⏱️ Der "Schnelle Weg":</strong><br>
+Mische 1 Teelöffel trockenes Granulat unter die Erde und gieße sofort kräftig an, damit es aktiviert wird.</p>
+<p><strong>Dosierung:</strong> 1 Teelöffel reicht für einen Standard-Topf (ca. 1 Liter Erde). Übertreibe es nicht – das Zeug hat Kraft!</p>
+<hr style="border-color: #333; margin-top: 20px;">
+<p style="text-align: center; color: #00FF41; font-weight: bold; font-size: 1.1em;">Bereit? Dann starte jetzt deinen Timer und das Formular! 🚀</p>
+</div>
+""", unsafe_allow_html=True)
 
 # ---------------------------------------------------------
 # 4. HAUPTANWENDUNG
@@ -287,7 +282,6 @@ def main():
             "elevator_effect": elevator,
             "comment": comm,
             "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            # Bild URL Logik hier vereinfacht
         }
         
         success = save_to_supabase(payload)
