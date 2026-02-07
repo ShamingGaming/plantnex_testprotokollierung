@@ -48,6 +48,19 @@ st.markdown("""
     }
     div.stButton > button:hover { background-color: #00FF41; color: #000000; }
     
+    /* Radio Buttons größer machen für Touch */
+    div[role="radiogroup"] > label {
+        background-color: #161b22;
+        padding: 10px;
+        border-radius: 5px;
+        margin-bottom: 5px;
+        border: 1px solid #333;
+        width: 100%;
+    }
+    div[role="radiogroup"] > label:hover {
+        border-color: #00FF41;
+    }
+    
     /* Anleitung Box Styling */
     .instruction-box {
         border: 1px solid #444;
@@ -63,6 +76,15 @@ st.markdown("""
     .instruction-box ul { padding-left: 20px; margin-bottom: 15px; }
     .instruction-box li { margin-bottom: 5px; }
     .warning-text { color: #FFD700; font-weight: bold; } /* Goldgelb für Warnungen */
+    
+    /* Info Box für den Speicher-Hinweis */
+    .info-box {
+        background-color: #0d211c;
+        border-left: 4px solid #00FF41;
+        padding: 10px;
+        margin-bottom: 20px;
+        font-size: 0.9em;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -101,40 +123,45 @@ def save_to_supabase(data_dict):
         return False
 
 # ---------------------------------------------------------
-# 3. ANLEITUNGS-TEXT (KORRIGIERT)
+# 3. ANLEITUNGS-TEXT (MIT NEUEM HINWEIS)
 # ---------------------------------------------------------
 def show_instructions():
-    # ACHTUNG: Der folgende Text ist absichtlich ganz links am Rand,
-    # damit die Formatierung im Browser korrekt angezeigt wird.
+    # ACHTUNG: HTML Text klebt links am Rand für korrekte Darstellung
     st.markdown("""
 <div class="instruction-box">
 <h3>🧪 PLANTNEX BETA-TEST: KURZANLEITUNG</h3>
 <p>Danke, dass du Teil der Test-Crew bist! Du hältst einen Prototypen ("Batch") unseres Bio-Superabsorbers in den Händen. Da es noch keine Verpackung gibt, befolge bitte genau diese Schritte:</p>
+
+<div class="info-box">
+<strong>💡 WICHTIG ZUM ABLAUF:</strong><br>
+Du kannst das Formular jederzeit schließen und später weitermachen (einfach mit gleichem Namen & Nummer wieder einloggen).<br>
+<em>Idealerweise füllst du es aber erst aus, <strong>nachdem</strong> du die folgenden Experimente gestartet hast.</em>
+</div>
+
 <p class="warning-text">⚠️ WARNUNG VORAB:</p>
 <p>Das Granulat enthält echte <u>Pflanzenkohle</u>. Es kann stauben und färbt bei Nässe tiefschwarz.</p>
 <ul>
 <li>Bitte nicht über dem weißen Teppich öffnen.</li>
-<li>Wir empfehlen Handschuhe oder vorsichtiges Arbeiten (lässt sich aber mit Seife abwaschen).</li>
+<li>Wir empfehlen Handschuhe oder vorsichtiges Arbeiten.</li>
 </ul>
 <h4>SCHRITT 1: DER GLAS-TEST (Pflicht für das Feedback!)</h4>
 <p>Bevor du es der Pflanze gibst, müssen wir wissen, wie dieser spezielle Batch reagiert.</p>
 <ul>
 <li><strong>Nimm 1 gehäuften Teelöffel</strong> (ca. 5g) Granulat.</li>
-<li>Gib es in ein durchsichtiges Glas (ca. 200ml).</li>
-<li>Kippe das Glas voll mit Wasser.</li>
-<li><strong>Wartezeit:</strong> Schau nach 30 Minuten und nach 2 Stunden nach.</li>
-<li><strong>Beobachte:</strong> Wie viel ist es geworden? Wie fühlt es sich an (fest/weich)?</li>
+<li>Gib es in ein durchsichtiges Glas (ca. 200ml) und kippe Wasser dazu.</li>
+<li><strong>Der Zeit-Check:</strong> Wir wollen wissen, wie es sich über Zeit verändert.</li>
+<li>Schaue es dir z.B. nach <strong>30 Min</strong> oder <strong>2 Stunden</strong> an und trage deine Beobachtung unten ein.</li>
 </ul>
-<p><em>(Diese Daten trägst du gleich unten in das Formular ein.)</em></p>
+<p><em>(Wähle unten einfach deinen aktuellen Mess-Zeitpunkt aus.)</em></p>
 <h4>SCHRITT 2: AB IN DIE ERDE (Die Kür)</h4>
 <p>Nach dem Messen kannst du das Produkt verwenden:</p>
 <p><strong>🌱 Der "Profi-Weg" (Empfohlen):</strong><br>
-Nimm den nassen "Gelee-Klumpen" aus deinem Test-Glas und mische ihn direkt unter die Erde im Wurzelbereich deiner Pflanze. Das ist der sofortige Wasserspeicher.</p>
+Nimm den nassen "Gelee-Klumpen" aus deinem Test-Glas und mische ihn direkt unter die Erde im Wurzelbereich deiner Pflanze.</p>
 <p><strong>⏱️ Der "Schnelle Weg":</strong><br>
-Mische 1 Teelöffel trockenes Granulat unter die Erde und gieße sofort kräftig an, damit es aktiviert wird.</p>
-<p><strong>Dosierung:</strong> 1 Teelöffel reicht für einen Standard-Topf (ca. 1 Liter Erde). Übertreibe es nicht – das Zeug hat Kraft!</p>
+Mische 1 Teelöffel trockenes Granulat unter die Erde und gieße sofort kräftig an.</p>
+<p><strong>Dosierung:</strong> 1 Teelöffel reicht für einen Standard-Topf (ca. 1 Liter Erde).</p>
 <hr style="border-color: #333; margin-top: 20px;">
-<p style="text-align: center; color: #00FF41; font-weight: bold; font-size: 1.1em;">Bereit? Dann starte jetzt deinen Timer und das Formular! 🚀</p>
+<p style="text-align: center; color: #00FF41; font-weight: bold; font-size: 1.1em;">Bereit? Dann starte jetzt das Protokoll! 🚀</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -147,7 +174,7 @@ def main():
 
     # --- SESSION STATE INITIALISIERUNG ---
     default_keys = {
-        "swelling_vol": 0, "swelling_time": 0, "rest_water": "Alles weg (Trocken)",
+        "swelling_vol": 0, "swelling_time": 30, "rest_water": "Alles weg (Trocken)",
         "consistency": 3, "stickiness": "Angenehm feucht", "structure": "Körnig / Stückig (Gut)",
         "app_method": "Trocken einmischen", "dirty_hands": False, "elevator_effect": False,
         "comment": "", "logged_in": False
@@ -175,7 +202,7 @@ def main():
             if existing:
                 # Session State mit DB-Daten überschreiben
                 st.session_state.swelling_vol = existing.get('swelling_vol', 0)
-                st.session_state.swelling_time = existing.get('swelling_time', 0)
+                st.session_state.swelling_time = existing.get('swelling_time', 30)
                 st.session_state.rest_water = existing.get('rest_water', "Alles weg (Trocken)")
                 st.session_state.consistency = existing.get('consistency', 3)
                 st.session_state.stickiness = existing.get('stickiness', "Angenehm feucht")
@@ -201,22 +228,48 @@ def main():
     # --- A: GLAS TEST ---
     st.markdown("### A // GLAS TEST")
     
-    # Timer Buttons (lokal)
-    t1, t2 = st.columns(2)
-    if t1.button("⏱️ 30 MINUTEN"): st.toast("Timer: 30 Min gestartet", icon="⏳")
-    if t2.button("⏱️ 2 STUNDEN"): st.toast("Timer: 2 Std gestartet", icon="⏳")
+    # NEU: Zeit-Auswahl statt Timer
+    st.markdown("**1. Wann misst du gerade? (Zeitpunkt)**")
+    
+    # Mapping: Text -> Minuten für die Datenbank
+    time_mapping = {
+        "Nach 30 Minuten": 30,
+        "Nach 2 Stunden": 120,
+        "Nach 24 Stunden (Langzeit)": 1440
+    }
+    
+    # Wir versuchen, den gespeicherten Wert (z.B. 120) wiederzufinden.
+    # Wenn nicht gefunden, nehmen wir den ersten (30 min).
+    stored_time = st.session_state.swelling_time
+    default_idx = 0
+    
+    # Finde den Index für den Radio Button basierend auf den Minuten
+    vals = list(time_mapping.values())
+    if stored_time in vals:
+        default_idx = vals.index(stored_time)
+
+    # Der Radio Button
+    selected_label = st.radio(
+        "Zeitpunkt wählen:",
+        list(time_mapping.keys()),
+        index=default_idx,
+        label_visibility="collapsed",
+        key="time_radio"
+    )
+    
+    # Umwandeln in Minuten für die Variable 'dur', die gespeichert wird
+    dur = time_mapping[selected_label]
     
     st.markdown("<br>", unsafe_allow_html=True)
     
     # WICHTIG: Alle Widgets nutzen value=st.session_state.key
-    vol = st.slider("Volumen im Glas (ml)", 0, 300, value=st.session_state.swelling_vol, key="input_vol")
+    vol = st.slider("2. Volumen im Glas (ml)", 0, 300, value=st.session_state.swelling_vol, key="input_vol")
     if 0 < vol < 30: st.error("⚠️ Zu wenig Volumen (Inaktiv)")
 
-    dur = st.number_input("Dauer bis voll (Minuten)", min_value=0, value=st.session_state.swelling_time, key="input_dur")
-    
+    st.markdown("**3. Restwasser Status**")
     water_opts = ["Alles weg (Trocken)", "Leichter Film", "Pfütze", "Suppe (Schwimmt)"]
     idx_water = water_opts.index(st.session_state.rest_water) if st.session_state.rest_water in water_opts else 0
-    rest = st.radio("Restwasser Status", water_opts, index=idx_water, horizontal=True, key="input_rest")
+    rest = st.radio("Restwasser Status", water_opts, index=idx_water, horizontal=True, key="input_rest", label_visibility="collapsed")
 
     st.divider()
 
@@ -272,7 +325,7 @@ def main():
             "batch_id": batch_id_input,
             "tester_name": tester_name_input,
             "swelling_vol": vol,
-            "swelling_time": dur,
+            "swelling_time": dur, # Hier wird jetzt 30, 120 oder 1440 gespeichert
             "rest_water": rest,
             "consistency": cons,
             "stickiness": stick,
@@ -288,7 +341,7 @@ def main():
         
         if success:
             st.balloons()
-            st.success("✅ DATEN GESPEICHERT! Du kannst die Seite schließen oder später weitermachen.")
+            st.success("✅ DATEN GESPEICHERT! Danke für das Feedback.")
             time.sleep(2)
             # Seite neu laden, um sicherzugehen, dass alles synchron ist
             st.rerun()
