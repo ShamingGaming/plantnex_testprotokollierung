@@ -14,7 +14,6 @@ st.set_page_config(
 )
 
 # Verbindung zu Supabase herstellen
-# (Liest automatisch aus .streamlit/secrets.toml)
 @st.cache_resource
 def init_connection():
     try:
@@ -89,7 +88,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 2. LOGIK: DATEN LADEN & SPEICHERN
+# 2. LOGIK: DATEN LADEN, SPEICHERN & UPLOAD
 # ---------------------------------------------------------
 
 def load_existing_data(batch_id, tester_name):
@@ -111,11 +110,37 @@ def load_existing_data(batch_id, tester_name):
         st.error(f"Verbindungsfehler: {e}")
         return None
 
+def upload_image(file, batch_id, tester_name):
+    """Lädt das Bild in den Supabase Storage Bucket 'plantnex-fotos'"""
+    if not supabase or not file: return None
+    try:
+        # Dateiname generieren: Batch_Name_Zeitstempel.jpg
+        timestamp = int(time.time())
+        file_ext = file.name.split('.')[-1]
+        file_path = f"{batch_id}_{tester_name}_{timestamp}.{file_ext}"
+        
+        # Upload durchführen
+        bucket_name = "plantnex-fotos"
+        file_bytes = file.getvalue()
+        
+        supabase.storage.from_(bucket_name).upload(
+            path=file_path,
+            file=file_bytes,
+            file_options={"content-type": file.type}
+        )
+        
+        # Öffentliche URL abrufen
+        public_url = supabase.storage.from_(bucket_name).get_public_url(file_path)
+        return public_url
+        
+    except Exception as e:
+        st.error(f"Bild-Upload Fehler: {e}")
+        return None
+
 def save_to_supabase(data_dict):
     """Speichert oder updated den Datensatz (Upsert)"""
     if not supabase: return False
     try:
-        # Upsert funktioniert nur, wenn wir batch_id + tester_name als Unique Key in SQL definiert haben
         response = supabase.table("plantnex_tests").upsert(data_dict).execute()
         return True
     except Exception as e:
@@ -123,10 +148,9 @@ def save_to_supabase(data_dict):
         return False
 
 # ---------------------------------------------------------
-# 3. ANLEITUNGS-TEXT (MIT NEUEM HINWEIS)
+# 3. ANLEITUNGS-TEXT
 # ---------------------------------------------------------
 def show_instructions():
-    # ACHTUNG: HTML Text klebt links am Rand für korrekte Darstellung
     st.markdown("""
 <div class="instruction-box">
 <h3>🧪 PLANTNEX BETA-TEST: KURZANLEITUNG</h3>
@@ -169,7 +193,6 @@ Mische 1 Teelöffel trockenes Granulat unter die Erde und gieße sofort kräftig
 # 4. HAUPTANWENDUNG
 # ---------------------------------------------------------
 def main():
-    # --- ANLEITUNG OBEN ---
     show_instructions()
 
     # --- SESSION STATE INITIALISIERUNG ---
@@ -184,7 +207,7 @@ def main():
         if key not in st.session_state:
             st.session_state[key] = val
 
-    # --- LOGIN BEREICH (Name & Charge) ---
+    # --- LOGIN ---
     st.markdown("### 🔐 START / LOGIN")
     col1, col2 = st.columns(2)
     with col1:
@@ -192,15 +215,12 @@ def main():
     with col2:
         batch_id_input = st.text_input("CHARGEN-NUMMER", placeholder="z.B. B005-X")
 
-    # Button zum Laden/Starten
     if st.button("PROTOKOLL STARTEN / FORTSETZEN ➡️"):
         if not tester_name_input or not batch_id_input:
             st.error("❌ Bitte Name und Chargen-Nummer eingeben!")
         else:
             existing = load_existing_data(batch_id_input, tester_name_input)
-            
             if existing:
-                # Session State mit DB-Daten überschreiben
                 st.session_state.swelling_vol = existing.get('swelling_vol', 0)
                 st.session_state.swelling_time = existing.get('swelling_time', 30)
                 st.session_state.rest_water = existing.get('rest_water', "Alles weg (Trocken)")
@@ -215,54 +235,28 @@ def main():
             st.session_state.logged_in = True
             st.rerun()
 
-    # Stop, wenn nicht eingeloggt
     if not st.session_state.logged_in:
         st.stop()
 
-    # -----------------------------------------------------
-    # START FORMULAR
-    # -----------------------------------------------------
+    # --- FORMULAR START ---
     st.divider()
     st.markdown(f"**AKTIVE SITZUNG:** {tester_name_input} | Batch: {batch_id_input}")
 
     # --- A: GLAS TEST ---
     st.markdown("### A // GLAS TEST")
     
-    # NEU: Zeit-Auswahl statt Timer
     st.markdown("**1. Wann misst du gerade? (Zeitpunkt)**")
-    
-    # Mapping: Text -> Minuten für die Datenbank
-    time_mapping = {
-        "Nach 30 Minuten": 30,
-        "Nach 2 Stunden": 120,
-        "Nach 24 Stunden (Langzeit)": 1440
-    }
-    
-    # Wir versuchen, den gespeicherten Wert (z.B. 120) wiederzufinden.
-    # Wenn nicht gefunden, nehmen wir den ersten (30 min).
+    time_mapping = {"Nach 30 Minuten": 30, "Nach 2 Stunden": 120, "Nach 24 Stunden (Langzeit)": 1440}
     stored_time = st.session_state.swelling_time
     default_idx = 0
-    
-    # Finde den Index für den Radio Button basierend auf den Minuten
     vals = list(time_mapping.values())
-    if stored_time in vals:
-        default_idx = vals.index(stored_time)
+    if stored_time in vals: default_idx = vals.index(stored_time)
 
-    # Der Radio Button
-    selected_label = st.radio(
-        "Zeitpunkt wählen:",
-        list(time_mapping.keys()),
-        index=default_idx,
-        label_visibility="collapsed",
-        key="time_radio"
-    )
-    
-    # Umwandeln in Minuten für die Variable 'dur', die gespeichert wird
+    selected_label = st.radio("Zeitpunkt wählen:", list(time_mapping.keys()), index=default_idx, label_visibility="collapsed", key="time_radio")
     dur = time_mapping[selected_label]
     
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # WICHTIG: Alle Widgets nutzen value=st.session_state.key
     vol = st.slider("2. Volumen im Glas (ml)", 0, 300, value=st.session_state.swelling_vol, key="input_vol")
     if 0 < vol < 30: st.error("⚠️ Zu wenig Volumen (Inaktiv)")
 
@@ -275,7 +269,6 @@ def main():
 
     # --- B: HAPTIK ---
     st.markdown("### B // HAPTIK")
-    
     cons = st.slider("Konsistenz (1=Schleim, 5=Hartgummi)", 1, 5, value=st.session_state.consistency, key="input_cons")
     if cons == 1: st.error("KRITISCHER FEHLER: SCHLEIM")
     
@@ -292,13 +285,11 @@ def main():
 
     # --- C: ANWENDUNG ---
     st.markdown("### C // ANWENDUNG")
-    
     method_opts = ["Trocken einmischen", "Vorgequollen (Nass)"]
     idx_method = method_opts.index(st.session_state.app_method) if st.session_state.app_method in method_opts else 0
     meth = st.radio("Angewandte Methode", method_opts, index=idx_method, horizontal=True, key="input_meth")
     
-    if meth == "Vorgequollen (Nass)":
-        st.warning("⚠️ HANDSCHUHE TRAGEN!")
+    if meth == "Vorgequollen (Nass)": st.warning("⚠️ HANDSCHUHE TRAGEN!")
 
     cc1, cc2 = st.columns(2)
     dirty = cc1.checkbox("Schwarze Hände?", value=st.session_state.dirty_hands, key="input_dirty")
@@ -310,41 +301,48 @@ def main():
     comm = st.text_area("Kommentar / Freitext", value=st.session_state.comment, placeholder="Deine Beobachtungen...", key="input_comm")
     
     st.caption("Neues Foto hochladen (Optional):")
-    uploaded_file = st.file_uploader("", type=['jpg', 'png'], label_visibility="collapsed")
+    uploaded_file = st.file_uploader("", type=['jpg', 'png', 'jpeg'], label_visibility="collapsed")
 
     st.markdown("<br>", unsafe_allow_html=True)
     
     # SPEICHER BUTTON
     if st.button("💾 BERICHT ABSENDEN / AKTUALISIEREN"):
-        # Daten sammeln
-        img_str = "kein_bild"
-        if uploaded_file:
-            img_str = f"IMG_{batch_id_input}_{tester_name_input}"
+        with st.spinner("Speichere Daten & lade Bild hoch..."):
+            
+            # Bild Upload Logik
+            image_url = None
+            if uploaded_file:
+                # Versuch das Bild hochzuladen
+                image_url = upload_image(uploaded_file, batch_id_input, tester_name_input)
+            
+            # Daten zusammenstellen
+            payload = {
+                "batch_id": batch_id_input,
+                "tester_name": tester_name_input,
+                "swelling_vol": vol,
+                "swelling_time": dur,
+                "rest_water": rest,
+                "consistency": cons,
+                "stickiness": stick,
+                "structure": struct,
+                "app_method": meth,
+                "dirty_hands": dirty,
+                "elevator_effect": elevator,
+                "comment": comm,
+                "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            
+            # Wenn ein Bild hochgeladen wurde, URL hinzufügen
+            if image_url:
+                payload["image_url"] = image_url
 
-        payload = {
-            "batch_id": batch_id_input,
-            "tester_name": tester_name_input,
-            "swelling_vol": vol,
-            "swelling_time": dur, # Hier wird jetzt 30, 120 oder 1440 gespeichert
-            "rest_water": rest,
-            "consistency": cons,
-            "stickiness": stick,
-            "structure": struct,
-            "app_method": meth,
-            "dirty_hands": dirty,
-            "elevator_effect": elevator,
-            "comment": comm,
-            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-        
-        success = save_to_supabase(payload)
-        
-        if success:
-            st.balloons()
-            st.success("✅ DATEN GESPEICHERT! Danke für das Feedback.")
-            time.sleep(2)
-            # Seite neu laden, um sicherzugehen, dass alles synchron ist
-            st.rerun()
+            success = save_to_supabase(payload)
+            
+            if success:
+                st.balloons()
+                st.success("✅ DATEN & BILD GESPEICHERT! Danke für das Feedback.")
+                time.sleep(2)
+                st.rerun()
 
 if __name__ == "__main__":
     main()
